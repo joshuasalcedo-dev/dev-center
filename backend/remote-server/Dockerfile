@@ -1,14 +1,11 @@
 # ── Build stage ──
 FROM eclipse-temurin:25-jdk-alpine AS build
 
+RUN apk add --no-cache maven
+
 WORKDIR /workspace
 
-# Copy Maven wrapper first
-COPY .mvn .mvn
-COPY mvnw ./
-RUN chmod +x mvnw
-
-# Copy parent pom and module poms for dependency caching
+# Copy poms first for dependency caching
 COPY pom.xml ./
 COPY common/pom.xml common/
 COPY local-server/pom.xml local-server/
@@ -16,7 +13,7 @@ COPY remote-server/pom.xml remote-server/
 
 # Download dependencies (cached unless poms change)
 RUN --mount=type=cache,target=/root/.m2 \
-    ./mvnw dependency:go-offline -pl remote-server -am -q 2>/dev/null || true
+    mvn dependency:go-offline -pl remote-server -am -q 2>/dev/null || true
 
 # Copy source
 COPY common/src common/src
@@ -24,7 +21,7 @@ COPY remote-server/src remote-server/src
 
 # Build the fat jar, skip tests
 RUN --mount=type=cache,target=/root/.m2 \
-    ./mvnw package -pl remote-server -am -DskipTests -q
+    mvn package -pl remote-server -am -DskipTests -q
 
 # ── Runtime stage ──
 FROM eclipse-temurin:25-jre-alpine

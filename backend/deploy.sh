@@ -8,13 +8,8 @@ COMPOSE_FILE="docker-compose.${ENVIRONMENT}.yml"
 
 echo "=== Deploying remote-server (${ENVIRONMENT}) ==="
 
-# --- Step 1: Pull latest code ---
-echo -e "\n[1/4] Pulling latest code..."
-cd "$REPO_DIR"
-git pull origin main
-
-# --- Step 2: Set up deploy directory ---
-echo -e "\n[2/4] Setting up ${DEPLOY_DIR}..."
+# --- Step 1: Set up deploy directory ---
+echo -e "\n[1/3] Setting up ${DEPLOY_DIR}..."
 sudo mkdir -p "$DEPLOY_DIR/backend"
 
 # Symlink backend into deploy dir so docker-compose context works
@@ -23,14 +18,14 @@ sudo ln -sfn "$REPO_DIR/backend" "$DEPLOY_DIR/backend"
 # Copy compose file
 sudo cp "$REPO_DIR/backend/remote-server/$COMPOSE_FILE" "$DEPLOY_DIR/docker-compose.yml"
 
-# --- Step 3: Build and start ---
-echo -e "\n[3/4] Building and starting services..."
+# --- Step 2: Build and start ---
+echo -e "\n[2/3] Building and starting services..."
 cd "$DEPLOY_DIR"
 sudo docker compose -f docker-compose.yml build --no-cache app
 sudo docker compose -f docker-compose.yml up -d
 
-# --- Step 4: Health check ---
-echo -e "\n[4/4] Waiting for health check..."
+# --- Step 3: Health check ---
+echo -e "\n[3/3] Waiting for health check..."
 max_retries=15
 retry=0
 while [ $retry -lt $max_retries ]; do

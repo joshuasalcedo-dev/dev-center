@@ -11,11 +11,22 @@ param(
 )
 
 $RemoteHost = "cmdcenter"
+$RepoDir = "/home/joshuasalcedo/dev-center"
 
 Write-Host "=== Deploying remote-server ($Environment) to $RemoteHost ===" -ForegroundColor Cyan
-Write-Host "Running deploy.sh on remote..." -ForegroundColor Yellow
 
-ssh $RemoteHost "bash /home/joshuasalcedo/dev-center/backend/deploy.sh $Environment"
+# --- Step 1: Pull latest on remote first ---
+Write-Host "`n[1/2] Pulling latest code on remote..." -ForegroundColor Yellow
+ssh $RemoteHost "cd $RepoDir && git pull origin main"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "git pull failed on remote"
+    exit 1
+}
+
+# --- Step 2: Run deploy script ---
+Write-Host "`n[2/2] Running deploy.sh on remote..." -ForegroundColor Yellow
+ssh $RemoteHost "bash $RepoDir/backend/deploy.sh $Environment"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Remote deployment failed"

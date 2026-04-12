@@ -1,0 +1,125 @@
+name: Release Local Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: true
+        type: string
+
+env:
+  R2_BUCKET: dev-center-releases
+
+jobs:
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: WINDOWS_X64
+            binary: local-server.exe
+            upload_name: local-server-windows-x64.exe
+          - os: ubuntu-22.04
+            platform: LINUX_X64_DEB
+            binary: local-server
+            upload_name: local-server-linux-x64
+          - os: ubuntu-22.04-arm
+            platform: LINUX_ARM64_DEB
+            binary: local-server
+            upload_name: local-server-linux-arm64
+          - os: macos-13
+            platform: MACOS_X64
+            binary: local-server
+            upload_name: local-server-macos-x64
+          - os: macos-latest
+            platform: MACOS_ARM64
+            binary: local-server
+            upload_name: local-server-macos-arm64
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm'
+          cache: 'maven'
+
+      - name: Build native executable
+        working-directory: backend
+        run: mvn package -pl local-server -am -Pnative -DskipTests -q
+
+      - name: Find binary and compute metadata
+        id: meta
+        shell: bash
+        run: |
+          BINARY="backend/local-server/target/${{ matrix.binary }}"
+          echo "binary=$BINARY" >> $GITHUB_OUTPUT
+          HASH=$(sha256sum "$BINARY" | cut -d' ' -f1)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            SIZE=$(stat -f%z "$BINARY")
+          else
+            SIZE=$(stat -c%s "$BINARY")
+          fi
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Upload to Cloudflare R2
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: r2 object put ${{ env.R2_BUCKET }}/local-server/v${{ inputs.version }}/${{ matrix.upload_name }} --file=${{ steps.meta.outputs.binary }}
+
+      - name: Save release info
+        shell: bash
+        run: |
+          cat > release-info.json <<EOF
+          {
+            "platform": "${{ matrix.platform }}",
+            "downloadUrl": "${{ secrets.CLOUDFLARE_R2_PUBLIC_URL }}/local-server/v${{ inputs.version }}/${{ matrix.upload_name }}",
+            "hashAlgorithm": "SHA256",
+            "hashValue": "${{ steps.meta.outputs.hash }}",
+            "sizeBytes": ${{ steps.meta.outputs.size }},
+            "signature": null
+          }
+          EOF
+
+      - name: Upload release info
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-info-${{ matrix.platform }}
+          path: release-info.json
+
+  publish-release:
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all release info
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-info-*
+          merge-multiple: false
+
+      - name: Publish release to remote server
+        shell: bash
+        run: |
+          BINARIES="["
+          FIRST=true
+          for f in release-info-*/release-info.json; do
+            if [ "$FIRST" = false ]; then BINARIES+=","; fi
+            BINARIES+=$(cat "$f")
+            FIRST=false
+          done
+          BINARIES+="]"
+
+          curl -X POST "${{ secrets.REMOTE_SERVER_URL }}/api/admin/artifacts/${{ secrets.LOCAL_ARTIFACT_ID }}/releases" \
+            -H "X-API-Key: ${{ secrets.ADMIN_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"version\": \"${{ inputs.version }}\", \"binaries\": $BINARIES}"

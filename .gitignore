@@ -12,13 +12,33 @@ dist
 dist-ssr
 *.local
 
+# Maven build output
+target/
+
+# Tauri sidecar binaries (built artifacts, not source)
+src-tauri/binaries/*.jar
+src-tauri/binaries/*.exe
+src-tauri/binaries/devcom-server-*
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
+*.iml
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Maven build artifacts
+.flattened-pom.xml
+
+# Screenshots / misc images at root
+/img*.png

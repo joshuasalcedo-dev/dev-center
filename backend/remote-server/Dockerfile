@@ -3,7 +3,12 @@ FROM eclipse-temurin:25-jdk-alpine AS build
 
 WORKDIR /workspace
 
-# Copy parent pom and module poms first for dependency caching
+# Copy Maven wrapper first
+COPY .mvn .mvn
+COPY mvnw ./
+RUN chmod +x mvnw
+
+# Copy parent pom and module poms for dependency caching
 COPY pom.xml ./
 COPY common/pom.xml common/
 COPY local-server/pom.xml local-server/
@@ -17,13 +22,8 @@ RUN --mount=type=cache,target=/root/.m2 \
 COPY common/src common/src
 COPY remote-server/src remote-server/src
 
-# Copy Maven wrapper
-COPY .mvn .mvn
-COPY mvnw ./
-
 # Build the fat jar, skip tests
 RUN --mount=type=cache,target=/root/.m2 \
-    chmod +x mvnw && \
     ./mvnw package -pl remote-server -am -DskipTests -q
 
 # ── Runtime stage ──

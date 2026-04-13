@@ -24,7 +24,7 @@ sudo cp "$REPO_DIR/backend/remote-server/$COMPOSE_FILE" "$DEPLOY_DIR/docker-comp
 # --- Step 2: Build and start ---
 echo -e "\n[2/3] Building and starting services..."
 cd "$DEPLOY_DIR"
-sudo docker compose -f docker-compose.yml build app
+sudo docker compose -f docker-compose.yml build --no-cache app
 sudo docker compose -f docker-compose.yml up -d
 
 # --- Step 3: Health check ---

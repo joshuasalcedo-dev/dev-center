@@ -26,7 +26,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # --- Step 2: Run deploy script ---
 Write-Host "`n[2/2] Running deploy.sh on remote..." -ForegroundColor Yellow
-ssh $RemoteHost "cd $RepoDir/backend && bash deploy.sh $Environment"
+ssh $RemoteHost "source /home/joshuasalcedo/.sdkman/bin/sdkman-init.sh && cd $RepoDir/backend && bash deploy.sh $Environment"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Remote deployment failed"
@@ -34,4 +34,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "`n=== Done ===" -ForegroundColor Cyan
-Write-Host "  Logs: ssh ${RemoteHost} 'sudo docker compose -f /opt/commandcenter/docker-compose.yml logs -f app'"
+Write-Host "  Logs: ssh ${RemoteHost} 'cd $RepoDir/backend && docker compose logs -f app'"

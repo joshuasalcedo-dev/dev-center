@@ -1,46 +1,29 @@
-# ── Build stage ──
-FROM eclipse-temurin:25-jdk-alpine AS build
+# Stage 1: Build the application
+FROM bellsoft/liberica-openjdk-debian:25 AS build
+WORKDIR /home/app
 
-RUN apk add --no-cache maven
+# Copy dependency files for better layer caching
+COPY pom.xml .
+# If using Maven wrapper: COPY mvnw . and COPY .mvn .mvn
+# RUN ./mvnw dependency:go-offline
 
-WORKDIR /workspace
+# Copy source code and build
+COPY src ./src
+RUN mvn clean package -DskipTests
 
-# Copy poms first for dependency caching
-COPY pom.xml ./
-COPY common/pom.xml common/
-COPY local-server/pom.xml local-server/
-COPY remote-server/pom.xml remote-server/
+# Stage 2: Create the runtime image
+FROM bellsoft/liberica-openjre-debian:25-cds
+WORKDIR /application
 
-# Download dependencies (cached unless poms change)
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn dependency:go-offline -pl remote-server -am -q 2>/dev/null || true
+# Copy the built JAR from the builder stage
+# Replace 'your-app-name.jar' with your actual JAR name from the target folder
+COPY --from=build /home/app/target/*.jar application.jar
 
-# Copy source
-COPY common/src common/src
-COPY remote-server/src remote-server/src
+# Run as a non-root user for better security
+RUN addgroup --system spring && adduser --system spring --ingroup spring
+USER spring:spring
 
-# Build the fat jar, skip tests
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn package -pl remote-server -am -DskipTests -q
-
-# ── Runtime stage ──
-FROM eclipse-temurin:25-jre-alpine
-
-RUN addgroup -S app && adduser -S app -G app
-
-WORKDIR /app
-
-COPY --from=build /workspace/remote-server/target/remote-server.jar app.jar
-
-RUN chown -R app:app /app
-USER app
-
+# Standard Spring Boot port
 EXPOSE 8080
 
-HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=45s \
-    CMD wget -qO- http://localhost:8080/actuator/health || exit 1
-
-ENTRYPOINT ["java", \
-    "-XX:+UseContainerSupport", \
-    "-XX:MaxRAMPercentage=75.0", \
-    "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "application.jar"]

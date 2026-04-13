@@ -26,7 +26,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # --- Step 2: Run deploy script ---
 Write-Host "`n[2/2] Running deploy.sh on remote..." -ForegroundColor Yellow
-ssh $RemoteHost "bash $RepoDir/backend/deploy.sh $Environment"
+ssh $RemoteHost "cd $RepoDir/backend && bash deploy.sh $Environment"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Remote deployment failed"
